@@ -64,7 +64,7 @@ resources:
     - repository: templates
       type: git
       name: DevOpsOrbit/genric-pipeline-template
-      ref: refs/heads/feature/genric-pipeline-template
+      ref: refs/heads/main
 
 stages:
   - template: checkov.yml@templates
