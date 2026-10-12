@@ -1,0 +1,113 @@
+name: $(Build.DefinitionName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+
+parameters:
+  - name: environment
+    displayName: '🎯 Target Environment'
+    type: string
+    default: dev
+    values:
+      - dev
+      - prod
+
+  - name: backendstorageaccountKey
+    displayName: '🔑 Select tfstate key'
+    type: string
+    default: dev.terraform.tfstate
+    values:
+      - dev.terraform.tfstate
+      - prod.terraform.tfstate
+
+  - name: checkov
+    displayName: 'Run Checkov Security Scan ?'
+    type: boolean
+    default: true
+
+  - name: TFlint
+    displayName: 'Run TFlint Linting ?'
+    type: boolean
+    default: true
+
+  - name: TFsec
+    displayName: 'Run TFsec Security Scan ?'
+    type: boolean
+    default: true
+
+  - name: terraformfmt
+    displayName: 'Run Terraform Format Check ?'
+    type: boolean
+    default: true
+
+  - name: terraformPlan
+    displayName: 'Run Terraform Plan ?'
+    type: boolean
+    default: true
+
+  - name: ManualApproval
+    displayName: 'Require Manual Approval ?'
+    type: boolean
+    default: true
+
+  - name: Apply
+    displayName: 'Run Terraform Apply ?'
+    type: boolean
+    default: true
+
+  - name: terraformDestroy
+    displayName: 'Run Terraform Destroy ? (Danger)'
+    type: boolean
+    default: false
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: DevOpsOrbit/genric-pipeline-template
+      ref: refs/heads/feature/genric-pipeline-template
+
+stages:
+  - template: checkov.yml@templates
+    parameters:
+      environment: ${{ parameters.environment }}
+      condition: and(succeeded(), ${{ eq(parameters.checkov, true) }})
+
+  - template: tflint.yml@templates
+    parameters:
+      condition: and(succeeded(), ${{ eq(parameters.TFlint, true) }})
+
+  - template: tfsec.yml@templates
+    parameters:
+      environment: ${{ parameters.environment }}
+      condition: and(succeeded(), ${{ eq(parameters.TFsec, true) }})
+
+  - template: terraform-fmt.yml@templates
+    parameters:
+      environment: ${{ parameters.environment }}
+      condition: and(succeeded(), ${{ eq(parameters.terraformfmt, true) }})
+
+  - template: terraform-plan.yml@templates
+    parameters:
+      environment: ${{ parameters.environment }}
+      backendKey: ${{ parameters.backendstorageaccountKey }}
+      dependsOn: [checkov, TFlint, TFsec, terraformFmt]
+      condition: and(not(or(failed(), canceled())), ${{ eq(parameters.terraformPlan, true) }})
+
+  - template: manual-approval.yml@templates
+    parameters:
+      dependsOn: [terraformPlan]
+      condition: and(succeeded(), ${{ eq(parameters.ManualApproval, true) }})
+
+  - template: terraform-apply.yml@templates
+    parameters:
+      environment: ${{ parameters.environment }}
+      backendKey: ${{ parameters.backendstorageaccountKey }}
+      dependsOn: [ManualApproval]
+      condition: and(succeeded(), ${{ eq(parameters.Apply, true) }}, ${{ ne(parameters.terraformDestroy, true) }})
+
+  - template: terraform-destroy.yml@templates
+    parameters:
+      environment: ${{ parameters.environment }}
+      backendKey: ${{ parameters.backendstorageaccountKey }}
+      dependsOn: [ManualApproval]
+      condition: and(succeeded(), ${{ eq(parameters.terraformDestroy, true) }}, ${{ ne(parameters.Apply, true) }})
