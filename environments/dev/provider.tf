@@ -8,10 +8,10 @@ terraform {
   }
 
   backend "azurerm" {
-    resource_group_name  = "rg-terraform-state-dev"
-    storage_account_name = "strorallydevtfstate"
+    resource_group_name  = "a-git"
+    storage_account_name = "storagecicdpipline1"
     container_name       = "tfstate"
-    key                  = "rally-tech-infra.dev.terraform.tfstate"
+    key                  = "dev.terraform.tfstate"
   }
 }
 

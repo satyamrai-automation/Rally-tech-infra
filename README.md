@@ -199,10 +199,10 @@ State persistence is configured via Azure Storage Backend with encryption-at-res
 
 ```hcl
 backend "azurerm" {
-  resource_group_name  = "rg-terraform-state-dev"        # or prod
-  storage_account_name = "strorallydevtfstate"           # or prod
+  resource_group_name  = "a-git"
+  storage_account_name = "storagecicdpipline1"
   container_name       = "tfstate"
-  key                  = "rally-tech-infra.dev.terraform.tfstate"
+  key                  = "dev.terraform.tfstate"
 }
 ```
 
