@@ -130,6 +130,13 @@ Rally-tech-infra/
 │   │   ├── terraform.tfvars          # Dev environment parameter values
 │   │   └── outputs.tf                # Dev exported outputs
 │   │
+│   ├── test/                         # Test/QA Environment Root
+│   │   ├── main.tf                   # Orchestrates Azure DevOps & GitHub child modules
+│   │   ├── provider.tf               # azurerm provider + test backend block
+│   │   ├── variable.tf               # Input variable schemas
+│   │   ├── terraform.tfvars          # Test environment parameter values
+│   │   └── outputs.tf                # Test exported outputs
+│   │
 │   └── prod/                         # Production Environment Root
 │       ├── main.tf                   # Orchestrates Azure DevOps child modules
 │       ├── provider.tf               # azurerm provider + prod backend block
@@ -181,15 +188,15 @@ module "subnet" {
 
 ## 🌐 Environments Matrix
 
-| Specification | Development (`dev`) | Production (`prod`) | Status |
-| :--- | :--- | :--- | :---: |
-| **Azure Region** | `centralindia` | `centralindia` | Active |
-| **Resource Group** | `rg-rally-dev-centralindia` | `rg-rally-prod-centralindia` | Provisioned |
-| **Virtual Network** | `vnet-rally-dev-centralindia` | `vnet-rally-prod-centralindia` | Provisioned |
-| **VNet Address Space** | `10.30.0.0/16` | `10.40.0.0/16` | Isolated |
-| **Frontend Tier (`snet-frontend`)** | `10.30.1.0/24` | `10.40.1.0/24` | Ready |
-| **Backend Tier (`snet-backend`)** | `10.30.2.0/24` | `10.40.2.0/24` | Ready |
-| **Database Tier (`snet-database`)** | `10.30.3.0/24` | `10.40.3.0/24` | Ready |
+| Specification | Development (`dev`) | Test (`test`) | Production (`prod`) | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **Azure Region** | `centralindia` | `centralindia` | `centralindia` | Active |
+| **Resource Group** | `rg-rally-dev-centralindia` | `rg-rally-test-centralindia` | `rg-rally-prod-centralindia` | Provisioned |
+| **Virtual Network** | `vnet-rally-dev-centralindia` | `vnet-rally-test-centralindia` | `vnet-rally-prod-centralindia` | Provisioned |
+| **VNet Address Space** | `10.30.0.0/16` | `10.20.0.0/16` | `10.40.0.0/16` | Isolated |
+| **Frontend Tier (`snet-frontend`)** | `10.30.1.0/24` | `10.20.1.0/24` | `10.40.1.0/24` | Ready |
+| **Backend Tier (`snet-backend`)** | `10.30.2.0/24` | `10.20.2.0/24` | `10.40.2.0/24` | Ready |
+| **Database Tier (`snet-database`)** | `10.30.3.0/24` | `10.20.3.0/24` | `10.40.3.0/24` | Ready |
 
 ---
 

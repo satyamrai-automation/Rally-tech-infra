@@ -10,6 +10,7 @@ parameters:
     values:
       - dev
       - prod
+      - test
 
   - name: backendstorageaccountKey
     displayName: '🔑 Select tfstate key'
@@ -18,6 +19,7 @@ parameters:
     values:
       - dev.terraform.tfstate
       - prod.terraform.tfstate
+      - test.terraform.tfstate
 
   - name: checkov
     displayName: 'Run Checkov Security Scan ?'

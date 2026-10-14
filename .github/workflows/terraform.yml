@@ -1,0 +1,215 @@
+name: '🚀 Terraform CI/CD Platform Pipeline'
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'environments/**'
+      - '.github/workflows/**'
+
+  push:
+    branches: [ main ]
+    paths:
+      - 'environments/**'
+      - '.github/workflows/**'
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '🎯 Target Environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+        default: 'dev'
+
+      action:
+        description: '⚙️ Terraform Action'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+        default: 'plan'
+
+      run_security_scan:
+        description: '🛡️ Run Checkov & Security Scans ?'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+env:
+  TF_VERSION: '1.5.7'
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+jobs:
+  # ============================================================================
+  # Stage 1: Linting, Formatting & Static Security Scans
+  # ============================================================================
+  lint-and-security:
+    name: '🔍 Lint & Security Audit'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 🎨 Check Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: 🔎 Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: 🚀 Run TFLint
+        run: |
+          tflint --init || true
+          tflint --recursive || true
+
+      - name: 🛡️ Run Checkov Security Scan
+        if: ${{ inputs.run_security_scan != false }}
+        uses: bridgecrewio/checkov-action@master
+        with:
+          framework: terraform
+          output_format: cli
+          soft_fail: true
+
+  # ============================================================================
+  # Stage 2: Terraform Plan
+  # ============================================================================
+  terraform-plan:
+    name: '📋 Terraform Plan'
+    needs: [lint-and-security]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.environment) || '["dev"]') }}
+    defaults:
+      run:
+        working-directory: ./environments/${{ matrix.env }}
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔑 Configure Azure DevOps Credentials for Child Modules
+        run: |
+          if [ -n "${{ secrets.AZURE_DEVOPS_PAT }}" ]; then
+            git config --global url."https://${{ secrets.AZURE_DEVOPS_PAT }}@dev.azure.com".insteadOf "https://dev.azure.com"
+            git config --global url."https://${{ secrets.AZURE_DEVOPS_PAT }}@dev.azure.com".insteadOf "https://satyam-cicd-org@dev.azure.com"
+          fi
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 📦 Terraform Init
+        run: terraform init
+
+      - name: 🧪 Terraform Validate
+        run: terraform validate
+
+      - name: 📊 Terraform Plan
+        id: plan
+        run: |
+          terraform plan -input=false -var-file="terraform.tfvars" -out=tfplan
+
+      - name: 💾 Upload Terraform Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.env }}
+          path: ./environments/${{ matrix.env }}/tfplan
+          retention-days: 2
+
+  # ============================================================================
+  # Stage 3: Terraform Apply (Requires GitHub Environment Approval Gate)
+  # ============================================================================
+  terraform-apply:
+    name: '🚀 Terraform Apply'
+    needs: [terraform-plan]
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ./environments/${{ inputs.environment }}
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔑 Configure Azure DevOps Credentials for Child Modules
+        run: |
+          if [ -n "${{ secrets.AZURE_DEVOPS_PAT }}" ]; then
+            git config --global url."https://${{ secrets.AZURE_DEVOPS_PAT }}@dev.azure.com".insteadOf "https://dev.azure.com"
+            git config --global url."https://${{ secrets.AZURE_DEVOPS_PAT }}@dev.azure.com".insteadOf "https://satyam-cicd-org@dev.azure.com"
+          fi
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 📦 Terraform Init
+        run: terraform init
+
+      - name: 📥 Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: ./environments/${{ inputs.environment }}
+
+      - name: ⚡ Terraform Apply
+        run: terraform apply -input=false tfplan
+
+  # ============================================================================
+  # Stage 4: Terraform Destroy (Emergency / Teardown Only)
+  # ============================================================================
+  terraform-destroy:
+    name: '⚠️ Terraform Destroy'
+    needs: [terraform-plan]
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ./environments/${{ inputs.environment }}
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔑 Configure Azure DevOps Credentials for Child Modules
+        run: |
+          if [ -n "${{ secrets.AZURE_DEVOPS_PAT }}" ]; then
+            git config --global url."https://${{ secrets.AZURE_DEVOPS_PAT }}@dev.azure.com".insteadOf "https://dev.azure.com"
+            git config --global url."https://${{ secrets.AZURE_DEVOPS_PAT }}@dev.azure.com".insteadOf "https://satyam-cicd-org@dev.azure.com"
+          fi
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 📦 Terraform Init
+        run: terraform init
+
+      - name: 🔥 Terraform Destroy
+        run: terraform destroy -input=false -auto-approve -var-file="terraform.tfvars"
